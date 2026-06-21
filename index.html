@@ -82,9 +82,9 @@
 
 <body>
 
-<h2>Pinterest Gallery</h2>
+<h2>Pinterest Image Gallery</h2>
 
-<input id="imageUrl" placeholder="Image URL">
+<input id="imageUrl" placeholder="Direct image URL only">
 <input id="tagInput" placeholder="tags: cat, meme">
 
 <button onclick="uploadImage()">Upload</button>
@@ -108,27 +108,19 @@
 <script>
 const API = "https://image-gallery-api.nathaniel-cockroft.workers.dev";
 
-/* ---------------- IMAGE FIXER ---------------- */
-async function fixImageUrl(url) {
-  if (!url) return "";
-
-  // IBB
-  if (url.includes("ibb.co") && !url.includes("i.ibb.co")) {
-    try {
-      const res = await fetch(url);
-      const html = await res.text();
-      const match = html.match(/https:\/\/i\.ibb\.co\/[^\"]+/);
-      if (match) return match[0];
-    } catch {}
-  }
-
-  // IMGUR
-  if (url.includes("imgur.com") && !url.includes("i.imgur.com")) {
-    const id = url.split("/").pop();
-    return `https://i.imgur.com/${id}.jpg`;
-  }
-
-  return url;
+/* ---------------- VALIDATION ---------------- */
+function isValidImageUrl(url) {
+  return (
+    url.startsWith("http") &&
+    (
+      url.includes(".jpg") ||
+      url.includes(".jpeg") ||
+      url.includes(".png") ||
+      url.includes(".webp") ||
+      url.includes("i.ibb.co") ||
+      url.includes("i.imgur.com")
+    )
+  );
 }
 
 /* ---------------- UPLOAD ---------------- */
@@ -145,16 +137,23 @@ async function uploadImage() {
     return;
   }
 
-  image = await fixImageUrl(image);
+  // 🚨 prevent broken data
+  image = image.split(" ")[0].trim();
+
+  if (!isValidImageUrl(image)) {
+    alert("Please use a DIRECT image link (ends in .jpg/.png or i.ibb/i.imgur)");
+    return;
+  }
+
+  const payload = { image, tags };
+
+  console.log("UPLOAD:", payload);
 
   try {
     const res = await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        image: image,
-        tags: tags
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!res.ok) {
@@ -166,7 +165,7 @@ async function uploadImage() {
     loadAll();
 
   } catch (e) {
-    alert("Server not reachable");
+    alert("Cannot reach server");
   }
 }
 
@@ -185,7 +184,7 @@ async function searchImages() {
   render(data);
 }
 
-/* ---------------- RENDER (FIXED SAFE) ---------------- */
+/* ---------------- RENDER ---------------- */
 function render(issues) {
   const gallery = document.getElementById("gallery");
   gallery.innerHTML = "";
@@ -194,14 +193,15 @@ function render(issues) {
     try {
       const data = JSON.parse(issue.body || "{}");
 
-      const imgUrl = data.image || "";
+      const imgUrl = data.image;
+
+      if (!imgUrl) return; // skip broken entries
 
       const card = document.createElement("div");
       card.className = "card";
 
       const img = document.createElement("img");
-
-      img.src = imgUrl || "https://via.placeholder.com/300?text=No+Image";
+      img.src = imgUrl;
 
       img.onerror = () => {
         img.src = "https://via.placeholder.com/300?text=Broken+Image";
@@ -219,7 +219,7 @@ function render(issues) {
       gallery.appendChild(card);
 
     } catch (e) {
-      console.log("Bad issue:", issue);
+      console.log("Bad issue skipped");
     }
   });
 }
@@ -238,6 +238,7 @@ function closeLightbox(e) {
   }
 }
 
+/* ---------------- INIT ---------------- */
 loadAll();
 </script>
 
