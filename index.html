@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Image Gallery</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      margin: 20px;
+    }
+
+    input {
+      padding: 8px;
+      margin: 5px;
+      width: 250px;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin: 5px;
+      cursor: pointer;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .card {
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+
+    img {
+      width: 100%;
+      height: auto;
+    }
+
+    .tags {
+      font-size: 12px;
+      color: #555;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>My Image Gallery</h2>
+
+<input id="imageUrl" placeholder="Image URL">
+<br>
+<input id="tagInput" placeholder="tags: cat, meme, cute">
+<br>
+
+<button onclick="uploadImage()">Upload</button>
+
+<hr>
+
+<input id="searchInput" placeholder="search tag">
+<button onclick="searchImages()">Search</button>
+<button onclick="loadAll()">Show All</button>
+
+<div id="gallery"></div>
+
+<script>
+const API = "https://image-gallery-api.nathaniel-cockroft.workers.dev";
+
+async function uploadImage() {
+  const image = document.getElementById("imageUrl").value.trim();
+  const tags = document.getElementById("tagInput").value
+    .split(",")
+    .map(t => t.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!image) {
+    alert("Enter an image URL");
+    return;
+  }
+
+  await fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image, tags })
+  });
+
+  alert("Uploaded!");
+  loadAll();
+}
+
+async function loadAll() {
+  const res = await fetch(API + "/all");
+  const issues = await res.json();
+  render(issues);
+}
+
+async function searchImages() {
+  const tag = document.getElementById("searchInput").value.trim();
+  const res = await fetch(API + "/search?tag=" + tag);
+  const issues = await res.json();
+  render(issues);
+}
+
+function render(issues) {
+  const gallery = document.getElementById("gallery");
+  gallery.innerHTML = "";
+
+  issues.forEach(issue => {
+    try {
+      const data = JSON.parse(issue.body);
+
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const img = document.createElement("img");
+      img.src = data.image;
+
+      const tags = document.createElement("div");
+      tags.className = "tags";
+      tags.textContent = "Tags: " + (data.tags || []).join(", ");
+
+      card.appendChild(img);
+      card.appendChild(tags);
+
+      gallery.appendChild(card);
+    } catch (e) {}
+  });
+}
+
+loadAll();
+</script>
+
+</body>
+</html>
