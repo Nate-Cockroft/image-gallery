@@ -23,7 +23,6 @@
       cursor: pointer;
     }
 
-    /* Pinterest layout */
     #gallery {
       column-count: 4;
       column-gap: 15px;
@@ -46,6 +45,7 @@
 
     .card img {
       width: 100%;
+      height: auto;
       display: block;
       cursor: zoom-in;
     }
@@ -69,17 +69,14 @@
       cursor: pointer;
     }
 
-    /* ================= FULLSCREEN FIX ================= */
-
+    /* FULLSCREEN */
     #lightbox {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
+      inset: 0;
       background: rgba(0,0,0,0.95);
       z-index: 99999;
+      overflow: hidden;
     }
 
     #lightboxImg {
@@ -87,11 +84,8 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-
-      width: 100vw;
-      height: 100vh;
-
-      object-fit: contain;
+      max-width: 100vw;
+      max-height: 100vh;
     }
 
     #lightboxTags {
@@ -110,7 +104,6 @@
       font-size: 40px;
       color: white;
       cursor: pointer;
-      z-index: 100000;
       user-select: none;
     }
   </style>
@@ -121,12 +114,13 @@
 <h2>Pinterest Gallery</h2>
 
 <input id="imageUrl" placeholder="Image URL">
-<input id="tagInput" placeholder="tags: cat, meme">
+
+<input id="tagInput" placeholder="tags (comma separated)">
 <button onclick="uploadImage()">Upload</button>
 
 <hr>
 
-<input id="searchInput" placeholder="search tag">
+<input id="searchInput" placeholder="search tag (or multiple)">
 <button onclick="searchImages()">Search</button>
 <button onclick="loadAll()">Show All</button>
 
@@ -142,26 +136,74 @@
 <script>
 const API = "https://image-gallery-api.nathaniel-cockroft.workers.dev";
 
+/* ---------------- TAG NORMALIZER ---------------- */
+function cleanTag(tag) {
+  return tag
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")   // spaces → underscore
+    .replace(/[^a-z0-9_]/g, ""); // remove bad chars
+}
+
+/* ---------------- URL CLEAN ---------------- */
+function cleanImageUrl(url) {
+  if (!url) return "";
+  url = url.trim().split(" ")[0];
+
+  if (url.includes("imgur.com") && !url.includes("i.imgur.com")) {
+    const id = url.split("/").pop();
+    return `https://i.imgur.com/${id}.jpg`;
+  }
+
+  return url;
+}
+
 /* ---------------- UPLOAD ---------------- */
 async function uploadImage() {
-  const image = document.getElementById("imageUrl").value.trim();
+  let image = document.getElementById("imageUrl").value.trim();
 
   const tags = document.getElementById("tagInput").value
     .split(",")
-    .map(t => t.trim().toLowerCase())
+    .map(cleanTag)
     .filter(Boolean);
 
   if (!image) return alert("Enter image URL");
 
-  const res = await fetch(API, {
+  image = cleanImageUrl(image);
+
+  await fetch(API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image, tags })
   });
 
-  if (!res.ok) return alert("Upload failed");
-
   loadAll();
+}
+
+/* ---------------- SEARCH ---------------- */
+async function searchImages() {
+  const tags = document.getElementById("searchInput").value
+    .split(",")
+    .map(cleanTag)
+    .filter(Boolean);
+
+  const res = await fetch(API + "/all");
+  const data = await res.json();
+
+  const filtered = data.filter(issue => {
+    try {
+      const d = JSON.parse(issue.body || "{}");
+      if (!d.tags) return false;
+
+      // must match ALL searched tags
+      return tags.every(t => d.tags.includes(t));
+
+    } catch {
+      return false;
+    }
+  });
+
+  render(filtered);
 }
 
 /* ---------------- LOAD ---------------- */
@@ -171,12 +213,40 @@ async function loadAll() {
   render(data);
 }
 
-/* ---------------- SEARCH ---------------- */
-async function searchImages() {
-  const tag = document.getElementById("searchInput").value.trim();
-  const res = await fetch(API + "/search?tag=" + tag);
-  const data = await res.json();
-  render(data);
+/* ---------------- RENDER ---------------- */
+function render(issues) {
+  const gallery = document.getElementById("gallery");
+  gallery.innerHTML = "";
+
+  issues.forEach(issue => {
+    try {
+      const data = JSON.parse(issue.body || "{}");
+      if (!data.image) return;
+
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const del = document.createElement("button");
+      del.className = "deleteBtn";
+      del.innerText = "🗑";
+      del.onclick = () => deletePost(issue.number);
+
+      const img = document.createElement("img");
+      img.src = cleanImageUrl(data.image);
+      img.onclick = () => openLightbox(data);
+
+      const tags = document.createElement("div");
+      tags.className = "tags";
+      tags.textContent = (data.tags || []).join(", ");
+
+      card.appendChild(del);
+      card.appendChild(img);
+      card.appendChild(tags);
+
+      gallery.appendChild(card);
+
+    } catch {}
+  });
 }
 
 /* ---------------- DELETE ---------------- */
@@ -192,58 +262,17 @@ async function deletePost(id) {
   loadAll();
 }
 
-/* ---------------- RENDER ---------------- */
-function render(issues) {
-  const gallery = document.getElementById("gallery");
-  gallery.innerHTML = "";
-
-  issues.forEach(issue => {
-    try {
-      const data = JSON.parse(issue.body || "{}");
-
-      if (!data.image) return;
-
-      const card = document.createElement("div");
-      card.className = "card";
-
-      const del = document.createElement("button");
-      del.className = "deleteBtn";
-      del.innerText = "🗑";
-      del.onclick = () => deletePost(issue.number);
-
-      const img = document.createElement("img");
-      img.src = data.image;
-
-      img.onclick = () => openLightbox(data);
-
-      const tags = document.createElement("div");
-      tags.className = "tags";
-      tags.textContent = (data.tags || []).join(", ");
-
-      card.appendChild(del);
-      card.appendChild(img);
-      card.appendChild(tags);
-
-      gallery.appendChild(card);
-
-    } catch (e) {}
-  });
-}
-
 /* ---------------- FULLSCREEN ---------------- */
 function openLightbox(data) {
   document.getElementById("lightbox").style.display = "block";
-  document.getElementById("lightboxImg").src = data.image;
+  document.getElementById("lightboxImg").src = cleanImageUrl(data.image);
 
   document.getElementById("lightboxTags").textContent =
     "Tags: " + (data.tags || []).join(", ");
 }
 
 function closeLightbox(e) {
-  if (
-    e.target.id === "lightbox" ||
-    e.target.id === "closeBtn"
-  ) {
+  if (e.target.id === "lightbox" || e.target.id === "closeBtn") {
     document.getElementById("lightbox").style.display = "none";
   }
 }
