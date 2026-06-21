@@ -23,6 +23,7 @@
       cursor: pointer;
     }
 
+    /* Pinterest layout */
     #gallery {
       column-count: 4;
       column-gap: 15px;
@@ -55,7 +56,6 @@
       color: #555;
     }
 
-    /* delete button */
     .deleteBtn {
       position: absolute;
       top: 8px;
@@ -69,37 +69,49 @@
       cursor: pointer;
     }
 
-    /* FULLSCREEN OVERLAY */
+    /* ================= FULLSCREEN FIX ================= */
+
     #lightbox {
       display: none;
       position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.9);
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      z-index: 9999;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.95);
+      z-index: 99999;
     }
 
-    #lightbox img {
-      max-width: 95vw;
-      max-height: 95vh;
+    #lightboxImg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+
+      width: 100vw;
+      height: 100vh;
+
       object-fit: contain;
     }
 
     #lightboxTags {
-      color: white;
-      margin-top: 10px;
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
       text-align: center;
+      color: white;
+      font-size: 14px;
     }
 
     #closeBtn {
       position: absolute;
-      top: 20px;
-      right: 30px;
-      font-size: 30px;
+      top: 15px;
+      right: 20px;
+      font-size: 40px;
       color: white;
       cursor: pointer;
+      z-index: 100000;
+      user-select: none;
     }
   </style>
 </head>
@@ -120,7 +132,7 @@
 
 <div id="gallery"></div>
 
-<!-- FULLSCREEN VIEW -->
+<!-- FULLSCREEN -->
 <div id="lightbox" onclick="closeLightbox(event)">
   <div id="closeBtn">✖</div>
   <img id="lightboxImg">
@@ -189,10 +201,11 @@ function render(issues) {
     try {
       const data = JSON.parse(issue.body || "{}");
 
+      if (!data.image) return;
+
       const card = document.createElement("div");
       card.className = "card";
 
-      // delete button (uses GitHub issue ID)
       const del = document.createElement("button");
       del.className = "deleteBtn";
       del.innerText = "🗑";
@@ -200,6 +213,7 @@ function render(issues) {
 
       const img = document.createElement("img");
       img.src = data.image;
+
       img.onclick = () => openLightbox(data);
 
       const tags = document.createElement("div");
@@ -218,21 +232,22 @@ function render(issues) {
 
 /* ---------------- FULLSCREEN ---------------- */
 function openLightbox(data) {
-  const lb = document.getElementById("lightbox");
-  lb.style.display = "flex";
-
+  document.getElementById("lightbox").style.display = "block";
   document.getElementById("lightboxImg").src = data.image;
+
   document.getElementById("lightboxTags").textContent =
     "Tags: " + (data.tags || []).join(", ");
 }
 
 function closeLightbox(e) {
-  if (e.target.id === "lightbox" || e.target.id === "closeBtn") {
+  if (
+    e.target.id === "lightbox" ||
+    e.target.id === "closeBtn"
+  ) {
     document.getElementById("lightbox").style.display = "none";
   }
 }
 
-/* ---------------- INIT ---------------- */
 loadAll();
 </script>
 
