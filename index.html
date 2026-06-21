@@ -66,7 +66,7 @@
       z-index: 9999;
     }
 
-    #lightboxContent img {
+    #lightbox img {
       max-width: 90vw;
       max-height: 90vh;
       border-radius: 10px;
@@ -82,9 +82,9 @@
 
 <body>
 
-<h2>Pinterest Image Gallery</h2>
+<h2>Pinterest Gallery</h2>
 
-<input id="imageUrl" placeholder="Image URL (ibb/imgur supported)">
+<input id="imageUrl" placeholder="Image URL">
 <input id="tagInput" placeholder="tags: cat, meme">
 
 <button onclick="uploadImage()">Upload</button>
@@ -110,9 +110,9 @@ const API = "https://image-gallery-api.nathaniel-cockroft.workers.dev";
 
 /* ---------------- IMAGE FIXER ---------------- */
 async function fixImageUrl(url) {
-  if (!url) return url;
+  if (!url) return "";
 
-  // IBB FIX
+  // IBB
   if (url.includes("ibb.co") && !url.includes("i.ibb.co")) {
     try {
       const res = await fetch(url);
@@ -122,7 +122,7 @@ async function fixImageUrl(url) {
     } catch {}
   }
 
-  // IMGUR FIX
+  // IMGUR
   if (url.includes("imgur.com") && !url.includes("i.imgur.com")) {
     const id = url.split("/").pop();
     return `https://i.imgur.com/${id}.jpg`;
@@ -140,7 +140,10 @@ async function uploadImage() {
     .map(t => t.trim().toLowerCase())
     .filter(Boolean);
 
-  if (!image) return alert("Enter image URL");
+  if (!image) {
+    alert("Enter image URL");
+    return;
+  }
 
   image = await fixImageUrl(image);
 
@@ -148,7 +151,10 @@ async function uploadImage() {
     const res = await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, tags })
+      body: JSON.stringify({
+        image: image,
+        tags: tags
+      })
     });
 
     if (!res.ok) {
@@ -159,8 +165,8 @@ async function uploadImage() {
     alert("Uploaded!");
     loadAll();
 
-  } catch (err) {
-    alert("Cannot reach server");
+  } catch (e) {
+    alert("Server not reachable");
   }
 }
 
@@ -179,22 +185,23 @@ async function searchImages() {
   render(data);
 }
 
-/* ---------------- RENDER ---------------- */
+/* ---------------- RENDER (FIXED SAFE) ---------------- */
 function render(issues) {
   const gallery = document.getElementById("gallery");
   gallery.innerHTML = "";
 
   issues.forEach(issue => {
     try {
-      const data = JSON.parse(issue.body);
+      const data = JSON.parse(issue.body || "{}");
 
-      console.log("Image:", data.image);
+      const imgUrl = data.image || "";
 
       const card = document.createElement("div");
       card.className = "card";
 
       const img = document.createElement("img");
-      img.src = data.image;
+
+      img.src = imgUrl || "https://via.placeholder.com/300?text=No+Image";
 
       img.onerror = () => {
         img.src = "https://via.placeholder.com/300?text=Broken+Image";
@@ -210,7 +217,10 @@ function render(issues) {
       card.appendChild(tags);
 
       gallery.appendChild(card);
-    } catch (e) {}
+
+    } catch (e) {
+      console.log("Bad issue:", issue);
+    }
   });
 }
 
